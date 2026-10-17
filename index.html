@@ -1074,7 +1074,7 @@
 </div>
 <div class="modal-bg" id="recentBooksModalBg">
   <div class="modal" style="max-width:600px">
-    <h2>🆕 နောက်ဆုံးထည့်သော စာအုပ်များ <small style="font-size:11px;opacity:.7">v4</small></h2>
+    <h2>🆕 နောက်ဆုံးထည့်သော စာအုပ်များ <small style="font-size:11px;opacity:.7">v5</small></h2>
     <div style="margin-bottom:8px"><select id="recentBooksCount" onchange="renderRecentBooks()" style="padding:7px;border:1px solid var(--line);border-radius:6px"><option value="10">နောက်ဆုံး ၁၀ အုပ်</option><option value="20" selected>နောက်ဆုံး ၂၀ အုပ်</option><option value="50">နောက်ဆုံး ၅၀ အုပ်</option><option value="9999">အားလုံး</option></select></div>
     <div id="recentBooksList"></div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="document.getElementById('recentBooksModalBg').classList.remove('show')">ပိတ်မည်</button></div>
@@ -6136,7 +6136,6 @@ function aiBookRender(){
       ${r.dupOf?`<div class="tag">⚠ ရှိပြီးသား (${escapeHtml(r.dupOf.code)})
         <select style="width:auto;display:inline-block" onchange="aiBookRowsData[${i}].mode=this.value;aiBookRowsData[${i}]._touchedMode=true;aiBookAssignCodes()">
           <option value="cover"${r.mode==='cover'?' selected':''}>ကာဗာပုံသာ (အုပ်ရေ မပြောင်း)</option>
-          <option value="stock"${r.mode==='stock'?' selected':''}>အုပ်ရေ ပေါင်းထည့်</option>
           <option value="new"${r.mode==='new'?' selected':''}>အသစ်အဖြစ် ထည့်</option>
           <option value="skip"${r.mode==='skip'?' selected':''}>ကျော်</option>
         </select></div>`:''}
@@ -6145,7 +6144,7 @@ function aiBookRender(){
   }).join('');
   const nNew = aiBookRowsData.filter(r=>r.mode==='new').length;
   const nStock = aiBookRowsData.filter(r=>r.mode==='stock').length;
-  document.getElementById('aiBookSummary').textContent = `အသစ် ${nNew} အုပ် · အုပ်ရေတိုး ${nStock} အုပ် · AI က မှားနိုင်လို့ သိမ်းမယ့်အရင် စစ်ပါ`;
+  document.getElementById('aiBookSummary').textContent = `အသစ် ${nNew} အုပ် · ကာဗာပုံသာ ${aiBookRowsData.filter(r=>r.mode==='cover').length} အုပ် · AI က မှားနိုင်လို့ သိမ်းမယ့်အရင် စစ်ပါ`;
 }
 function aiBookRemove(i){ aiBookRowsData.splice(i,1); aiBookAssignCodes(); }
 function aiBookClose(){ document.getElementById('aiBookModalBg').classList.remove('show'); aiBookRowsData=[]; }
@@ -6165,7 +6164,7 @@ async function aiBookSave(){
     } else if(r.mode==='cover' && r.dupOf){
       const b = books.find(x=>x.id===r.dupOf.id);
       if(b && r.cover){ b.coverImage=r.cover; covered++; }
-    } else if(r.mode==='stock' && r.dupOf){
+    } else if(false && r.dupOf){
       const b = books.find(x=>x.id===r.dupOf.id);
       if(b){ b.remaining=(Number(b.remaining)||0)+r.qty; b.arrived=(Number(b.arrived)||0)+r.qty; if(!Number(b.price) && r.price) b.price=r.price; if(!b.coverImage && r.cover) b.coverImage=r.cover; b.restockedAt=Date.now()+stocked; stocked++; }
     }
@@ -6173,7 +6172,7 @@ async function aiBookSave(){
   await saveBooks();
   aiBookClose();
   render();
-  showToast(`အသစ် ${added} အုပ်၊ အုပ်ရေတိုး ${stocked} အုပ်၊ ကာဗာပုံ ${covered} ပုံ သိမ်းပြီး`);
+  showToast(`အသစ် ${added} အုပ်၊ ကာဗာပုံ ${covered} ပုံ သိမ်းပြီး`);
 }
 
 /* ---- Order from photo ---- */
