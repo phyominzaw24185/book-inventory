@@ -1074,7 +1074,7 @@
 </div>
 <div class="modal-bg" id="recentBooksModalBg">
   <div class="modal" style="max-width:600px">
-    <h2>🆕 နောက်ဆုံးထည့်သော စာအုပ်များ <small style="font-size:11px;opacity:.7">v5</small></h2>
+    <h2>🆕 နောက်ဆုံးထည့်သော စာအုပ်များ <small style="font-size:11px;opacity:.7">v6</small></h2>
     <div style="margin-bottom:8px"><select id="recentBooksCount" onchange="renderRecentBooks()" style="padding:7px;border:1px solid var(--line);border-radius:6px"><option value="10">နောက်ဆုံး ၁၀ အုပ်</option><option value="20" selected>နောက်ဆုံး ၂၀ အုပ်</option><option value="50">နောက်ဆုံး ၅၀ အုပ်</option><option value="9999">အားလုံး</option></select></div>
     <div id="recentBooksList"></div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="document.getElementById('recentBooksModalBg').classList.remove('show')">ပိတ်မည်</button></div>
@@ -6243,7 +6243,9 @@ function openRecentBooks(){
 }
 function renderRecentBooks(){
   const n = Number(document.getElementById('recentBooksCount').value)||20;
-  const list = books.slice().sort((a,b)=>bookAddedTime(b)-bookAddedTime(a)).slice(0,n);
+  let _last=0; const _eff=new Map();
+  books.forEach((b,i)=>{ const t=bookAddedTime(b); if(t>0) _last=Math.max(_last,t); _eff.set(b, t>0?t:_last+i*0.001); });
+  const list = books.slice().sort((a,b)=>_eff.get(b)-_eff.get(a)).slice(0,n);
   const box = document.getElementById('recentBooksList');
   if(!list.length){ box.innerHTML='<div style="padding:20px;text-align:center;color:var(--ink-soft)">စာအုပ် မရှိသေးပါ</div>'; return; }
   box.innerHTML = list.map(b=>{
