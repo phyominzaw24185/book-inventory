@@ -1064,7 +1064,7 @@
 </div>
 <input type="file" id="covFile" accept=".json,application/json" style="display:none">
 <input type="file" id="covOne" accept="image/*" style="display:none">
-<div class="modal-bg" id="covModalBg">
+<div class="modal-bg" id="covModalBg" style="z-index:9999">
   <div class="modal" style="max-width:640px">
     <h2>🖼 ကာဗာပုံ ထည့်ရန်</h2>
     <div style="font-size:12px;color:var(--ink-soft);margin-bottom:8px">ပုံတစ်ပုံချင်းစီအတွက် ကိုက်ညီတဲ့ စာအုပ်ကို ရွေးပါ။ မရွေးရင် ကျော်သွားပါမယ်။ လက်ကျန်၊ ဈေးနှုန်း မပြောင်းပါ။</div>
@@ -6304,12 +6304,15 @@ function covOnePick(id){ covOneId=id; const el=document.getElementById('covOne')
 document.getElementById('covOne').onchange = function(){
   const f=this.files[0]; if(!f||!covOneId) return;
   const img=new Image(), url=URL.createObjectURL(f);
+  img.onerror=()=>{ URL.revokeObjectURL(url); alert('ပုံကို ဖတ်မရပါ — JPG/PNG ပုံ ရွေးကြည့်ပါ'); };
   img.onload=async()=>{
+    try{
     const sc=Math.min(1,340/Math.max(img.width,img.height)), c=document.createElement('canvas');
     c.width=Math.round(img.width*sc); c.height=Math.round(img.height*sc);
     c.getContext('2d').drawImage(img,0,0,c.width,c.height); URL.revokeObjectURL(url);
     const b=books.find(k=>k.id===covOneId); if(!b) return;
     b.coverImage=c.toDataURL('image/jpeg',0.6); await saveBooks(); render(); renderRecentBooks();
+    }catch(e){ alert('မအောင်မြင်ပါ: '+e.message); }
   };
   img.src=url;
 };
