@@ -725,6 +725,20 @@
     }
     .page-nav button::before{font-size:17px;}
   }
+
+  /* ---- AI photo import ---- */
+  #aiBusy{position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:300;display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:#fff;font-weight:700;text-align:center;padding:20px}
+  #aiBusy.show{display:flex}
+  #aiBusy .ai-spin{width:42px;height:42px;border:4px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:aispin .8s linear infinite}
+  @keyframes aispin{to{transform:rotate(360deg)}}
+  .ai-row{border:1.5px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px;background:#fff}
+  .ai-row.dup{border-color:#d97706;background:#fffbeb}
+  .ai-row.bad{border-color:#dc2626}
+  .ai-row .g{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px}
+  .ai-row .g3{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:6px;margin-bottom:6px}
+  .ai-row input,.ai-row select{width:100%;box-sizing:border-box;padding:7px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:13px}
+  .ai-row .tag{font-size:11px;color:#b45309;font-weight:700}
+  .ai-row .rm{background:none;border:none;color:#dc2626;font-size:18px;cursor:pointer}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
@@ -784,6 +798,8 @@
     <button class="btn btn-ghost" id="booksSeriesBtn">🗂️ မျိုးတူစု ကြည့်ရန်</button>
     <button class="btn btn-ghost" id="compressImagesBtn">🗜️ ပုံများ ချုံ့ပြီး Storage လွတ်ရန်</button>
     <button class="btn btn-ghost" id="cleanIncompleteBooksBtn">🧹 မပြည့်စုံသေးသော စာအုပ်များ ရှင်းရန်</button>
+    <button class="btn btn-ghost" onclick="openRecentBooks()">🆕 နောက်ဆုံးထည့်သော စာအုပ်များ</button>
+    <button class="btn btn-ghost" id="aiBookBtn" onclick="aiBookPick()">📥 စာရင်းဖိုင်မှ ထည့်ရန်</button>
     <button class="btn btn-maroon" id="addBtn">+ စာအုပ်အသစ်ထည့်ရန်</button>
   </div>
 
@@ -1017,6 +1033,42 @@
 <datalist id="bookCodesList"></datalist>
 <div id="codeSuggestDropdown" class="code-suggest-dropdown" style="display:none;"></div>
 
+
+<div id="aiBusy"><div class="ai-spin"></div><div id="aiBusyMsg">AI ဖတ်နေပါတယ်...</div></div>
+<input type="file" id="aiBookFile" accept=".json,application/json"  style="display:none">
+<input type="file" id="aiCoverFile" accept="image/*" style="display:none">
+<input type="file" id="aiOrderFile" accept=".json,application/json"  style="display:none">
+<div class="modal-bg" id="aiBookModalBg">
+  <div class="modal" style="max-width:640px">
+    <h2>📷 ဓာတ်ပုံမှ စာအုပ်များ</h2>
+    <div class="field-row">
+      <div class="field">
+        <label>Code စီပုံ</label>
+        <select id="aiCodeScheme" onchange="aiBookAssignCodes(true)">
+          <option value="seq">ဂဏန်းအစဉ် (0001, 0002...)</option>
+          <option value="gs">အတန်း-ဘာသာ (G12-MM-001...)</option>
+        </select>
+      </div>
+      <div class="field" style="align-self:end">
+        <button type="button" class="btn btn-ghost" onclick="aiBookSortAndCode()">↕ အတန်း/ဘာသာအလိုက် စီပြီး Code ပြန်ပေး</button>
+      </div>
+    </div>
+    <div id="aiBookRows"></div>
+    <div id="aiBookSummary" style="font-size:12px;color:var(--ink-soft);margin:6px 0"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="aiBookClose()">မလုပ်တော့ပါ</button>
+      <button class="btn btn-maroon" onclick="aiBookSave()">သိမ်းမည်</button>
+    </div>
+  </div>
+</div>
+<div class="modal-bg" id="recentBooksModalBg">
+  <div class="modal" style="max-width:600px">
+    <h2>🆕 နောက်ဆုံးထည့်သော စာအုပ်များ</h2>
+    <div style="margin-bottom:8px"><select id="recentBooksCount" onchange="renderRecentBooks()" style="padding:7px;border:1px solid var(--line);border-radius:6px"><option value="10">နောက်ဆုံး ၁၀ အုပ်</option><option value="20" selected>နောက်ဆုံး ၂၀ အုပ်</option><option value="50">နောက်ဆုံး ၅၀ အုပ်</option><option value="9999">အားလုံး</option></select></div>
+    <div id="recentBooksList"></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="document.getElementById('recentBooksModalBg').classList.remove('show')">ပိတ်မည်</button></div>
+  </div>
+</div>
 <div class="modal-bg" id="modalBg">
   <div class="modal">
     <h2 id="modalTitle">စာအုပ်အသစ်ထည့်ရန်</h2>
@@ -1087,6 +1139,7 @@
 <div class="modal-bg" id="orderModalBg">
   <div class="modal" style="max-width:540px">
     <h2 id="orderModalTitle">ရောင်းစာရင်း အသစ်ထည့်ရန်</h2>
+    <button type="button" class="btn btn-ghost" id="aiOrderBtn" onclick="aiOrderPick()" style="width:100%;margin-bottom:12px;border:1.5px dashed var(--gold)">📥 Order ဖိုင်မှ ဖြည့်ရန် (ဝယ်သူ၊ လိပ်စာ၊ ဖုန်း၊ စာအုပ်)</button>
     <div class="field-row">
       <div class="field">
         <label>ရက်စွဲ</label>
@@ -2435,7 +2488,7 @@ async function handleSave(){
     const idx = books.findIndex(x=>x.id===editingId);
     if(idx>-1) books[idx] = {...books[idx], ...data};
   } else {
-    books.push({id: uid(), ...data});
+    books.push({id: uid(), addedAt: Date.now(), ...data});
   }
   await saveBooks();
   closeModal();
@@ -5890,6 +5943,306 @@ document.addEventListener('focusin', function(e){
     e.target.addEventListener('wheel', function(ev){ ev.preventDefault(); }, {passive:false, once:true});
   }
 });
+
+/* ================= AI PHOTO IMPORT ================= */
+const AI_MODELS = ['claude-sonnet-5-5','claude-sonnet-4-5','claude-haiku-4-5-20251001'];
+const SUBJECT_ABBR = {"မြန်မာစာ":"MM","အင်္ဂလိပ်စာ":"EN","သင်္ချာ":"MA","ဓာတုဗေဒ":"CH","ရူပဗေဒ":"PH","ဇီဝဗေဒ":"BI","ဘောဂဗေဒ":"EC","ပထဝီ":"GE","သမိုင်း":"HI","လူမှုရေး":"SO","သိပ္ပံ":"SC","မေးခွန်းဟောင်း":"QB","အခြား":"OT"};
+let aiKeyCache = null;
+async function aiGetKey(){
+  if(aiKeyCache) return aiKeyCache;
+  const k = await storageGet('ai-api-key');
+  if(k) aiKeyCache = k;
+  return aiKeyCache;
+}
+async function aiSetKey(){
+  const cur = await aiGetKey();
+  const v = prompt('Anthropic API Key ထည့်ပါ (sk-ant-...)\nဒီဖုန်းထဲမှာပဲ သိမ်းပါမယ်။ ဖျက်ချင်ရင် အလွတ်ထားပြီး OK နှိပ်ပါ။', cur||'');
+  if(v === null) return null;
+  aiKeyCache = v.trim();
+  await storageSet('ai-api-key', aiKeyCache);
+  showToast(aiKeyCache ? 'Key သိမ်းပြီးပါပြီ' : 'Key ဖျက်ပြီးပါပြီ');
+  return aiKeyCache;
+}
+function aiBusy(on, msg){
+  document.getElementById('aiBusyMsg').textContent = msg || 'AI ဖတ်နေပါတယ်...';
+  document.getElementById('aiBusy').classList.toggle('show', !!on);
+}
+function aiFileToJpeg(file){
+  return new Promise((resolve,reject)=>{
+    const fr = new FileReader();
+    fr.onerror = ()=>reject(new Error('ဖိုင်ဖတ်မရပါ'));
+    fr.onload = ()=>{
+      const img = new Image();
+      img.onerror = ()=>reject(new Error('ပုံဖွင့်မရပါ'));
+      img.onload = ()=>{
+        const max = 1600;
+        let w = img.width, h = img.height;
+        if(w > max || h > max){
+          if(w > h){ h = Math.round(h*max/w); w = max; } else { w = Math.round(w*max/h); h = max; }
+        }
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img,0,0,w,h);
+        resolve(c.toDataURL('image/jpeg',0.85).split(',')[1]);
+      };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+async function aiAsk(files, prompt){
+  let key = await aiGetKey();
+  if(!key){ key = await aiSetKey(); if(!key) throw new Error('API Key မထည့်ရသေးပါ'); }
+  const content = [];
+  for(const f of files){
+    content.push({type:'image', source:{type:'base64', media_type:'image/jpeg', data: await aiFileToJpeg(f)}});
+  }
+  content.push({type:'text', text: prompt});
+  let lastErr = null;
+  for(const model of AI_MODELS){
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body: JSON.stringify({model, max_tokens:4096, messages:[{role:'user', content}]})
+    });
+    if(res.ok){
+      const j = await res.json();
+      return (j.content||[]).map(c=>c.text||'').join('');
+    }
+    let msg = '';
+    try{ const j = await res.json(); msg = (j.error && j.error.message) || ''; }catch(e){}
+    if(res.status === 401){ aiKeyCache = null; throw new Error('API Key မမှန်ပါ — 🔑 နှိပ်ပြီး ပြန်ထည့်ပါ'); }
+    lastErr = new Error('AI error ' + res.status + ' ' + msg);
+    if(res.status !== 404 && res.status !== 400) break;
+  }
+  throw lastErr || new Error('AI မရပါ');
+}
+function aiParseJson(text){
+  const m = text.match(/[\[{][\s\S]*[\]}]/);
+  if(!m) throw new Error('AI အဖြေ ဖတ်မရပါ');
+  return JSON.parse(m[0]);
+}
+function aiNorm(t){ return (t||'').toString().toLowerCase().replace(/[\s\-_.,()\[\]]/g,''); }
+
+/* ---- Books from photo ---- */
+let aiBookRowsData = [];
+function aiBookPick(){
+  const el = document.getElementById('aiBookFile'); el.value=''; el.click();
+}
+document.getElementById('aiBookFile').onchange = async function(){
+  const files = Array.from(this.files||[]);
+  if(!files.length) return;
+  aiBusy(true, 'ဖတ်နေပါတယ်...');
+  try{
+    const prompt = `ဒီပုံ(များ)ထဲက စာအုပ်တွေကို ဖတ်ပြီး JSON array တစ်ခုတည်း ပြန်ပေးပါ (တခြားစာ မရေးပါနဲ့)။
+စာအုပ်တစ်အုပ်စီအတွက် object: {"grade":"","subject":"","title":"","author":"","publisher":"","price":0,"qty":1}
+- grade သည် ဒီစာရင်းထဲက တစ်ခုပဲ ဖြစ်ရမယ်: ${JSON.stringify(GRADES)} (မသေချာရင် အကောင်းဆုံး ခန့်မှန်းပါ)
+- subject သည် ဒီစာရင်းထဲက တစ်ခုပဲ ဖြစ်ရမယ်: ${JSON.stringify(SUBJECTS)}
+- title = စာအုပ်ခေါင်းစဉ် (ပုံထဲမှာ ရေးထားတဲ့အတိုင်း၊ grade/subject စကားလုံး မထည့်ဘဲ)
+- price/qty ပုံမှာ မပါရင် 0 နဲ့ 1 ထားပါ၊ author/publisher မပါရင် ""`;
+    const out = aiParseJson(await files[0].text());
+    const arr = Array.isArray(out) ? out : (out.books||[]);
+    if(!arr.length) throw new Error('စာအုပ် မတွေ့ပါ');
+    aiBookRowsData = arr.map(b=>{
+      const grade = GRADES.includes(b.grade) ? b.grade : currentGrade;
+      const subject = SUBJECTS.includes(b.subject) ? b.subject : 'အခြား';
+      return {grade, subject, title:(b.title||'').toString().trim(), author:(b.author||'').toString().trim(), publisher:(b.publisher||'').toString().trim(), price:Number(b.price)||0, qty:Math.max(1,Number(b.qty)||1), cover:(typeof b.cover==='string'&&b.cover.indexOf('data:image')===0)?b.cover:'', code:'', manual:false, mode:'new'};
+    }).filter(r=>r.title);
+    aiBookSortAndCode();
+    document.getElementById('aiBookModalBg').classList.add('show');
+  }catch(e){
+    alert('မအောင်မြင်ပါ: ' + e.message);
+  }finally{
+    aiBusy(false);
+  }
+};
+function aiBookFindExisting(r){
+  const n = aiNorm(r.title);
+  return books.find(b=>b.grade===r.grade && aiNorm(b.title)===n) || null;
+}
+function aiBookSortAndCode(){
+  aiBookRowsData.sort((a,b)=>
+    GRADES.indexOf(a.grade)-GRADES.indexOf(b.grade) ||
+    SUBJECTS.indexOf(a.subject)-SUBJECTS.indexOf(b.subject) ||
+    a.title.localeCompare(b.title,'my'));
+  aiBookRowsData.forEach(r=>{ r.manual=false; });
+  aiBookAssignCodes(false);
+}
+function aiGradeAbbr(g){ const m = g.match(/\d+/); return m ? 'G'+m[0] : 'KG'; }
+function aiBookAssignCodes(resetManual){
+  const scheme = document.getElementById('aiCodeScheme').value;
+  const used = new Set(books.map(b=>(b.code||'').toLowerCase()));
+  aiBookRowsData.forEach(r=>{ r.dupOf = aiBookFindExisting(r); if(r.dupOf && r.mode==='new' && !r._touchedMode) r.mode='stock'; });
+  // reserve manual codes first
+  aiBookRowsData.forEach(r=>{ if(r.manual && r.code) used.add(r.code.toLowerCase()); });
+  let seq = parseInt(suggestNextCode(),10);
+  const counters = {};
+  aiBookRowsData.forEach(r=>{
+    if(r.mode==='stock' && r.dupOf){ r.code = r.dupOf.code; return; }
+    if(r.manual && r.code) return;
+    let code;
+    if(scheme==='gs'){
+      const prefix = aiGradeAbbr(r.grade)+'-'+(SUBJECT_ABBR[r.subject]||'OT')+'-';
+      if(counters[prefix]===undefined){
+        let mx = 0;
+        books.forEach(b=>{ const c=(b.code||''); if(c.toUpperCase().startsWith(prefix)){ const n=parseInt(c.slice(prefix.length),10); if(!isNaN(n)&&n>mx) mx=n; } });
+        counters[prefix]=mx;
+      }
+      do{ counters[prefix]++; code = prefix+String(counters[prefix]).padStart(3,'0'); }while(used.has(code.toLowerCase()));
+    } else {
+      do{ code = String(seq++).padStart(4,'0'); }while(used.has(code.toLowerCase()));
+    }
+    used.add(code.toLowerCase());
+    r.code = code;
+  });
+  aiBookRender();
+}
+function aiBookRender(){
+  const codeCount = {};
+  aiBookRowsData.forEach(r=>{ if(r.mode!=='skip' && r.mode!=='stock'){ const k=(r.code||'').toLowerCase(); codeCount[k]=(codeCount[k]||0)+1; } });
+  const exist = new Set(books.map(b=>(b.code||'').toLowerCase()));
+  document.getElementById('aiBookRows').innerHTML = aiBookRowsData.map((r,i)=>{
+    const k=(r.code||'').toLowerCase();
+    const bad = r.mode==='new' && (!r.code || codeCount[k]>1 || exist.has(k));
+    return `<div class="ai-row${r.dupOf?' dup':''}${bad?' bad':''}">
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+        <input value="${escapeHtml(r.title)}" oninput="aiBookRowsData[${i}].title=this.value" style="font-weight:700">
+        <button class="rm" onclick="aiBookRemove(${i})">✕</button>
+      </div>
+      <div class="g">
+        <select onchange="aiBookRowsData[${i}].grade=this.value;aiBookAssignCodes()">${GRADES.map(g=>`<option${g===r.grade?' selected':''}>${g}</option>`).join('')}</select>
+        <select onchange="aiBookRowsData[${i}].subject=this.value;aiBookAssignCodes()">${SUBJECTS.map(g=>`<option${g===r.subject?' selected':''}>${g}</option>`).join('')}</select>
+      </div>
+      <div class="g3">
+        <input value="${escapeHtml(r.code)}" ${r.mode==='stock'?'readonly':''} placeholder="Code" onchange="aiBookRowsData[${i}].code=this.value.trim();aiBookRowsData[${i}].manual=true;aiBookRender()">
+        <input type="number" min="0" value="${r.price}" placeholder="စျေး" oninput="aiBookRowsData[${i}].price=Number(this.value)||0">
+        <input type="number" min="1" value="${r.qty}" placeholder="အုပ်ရေ" oninput="aiBookRowsData[${i}].qty=Math.max(1,Number(this.value)||1)">
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        ${r.cover?`<img src="${r.cover}" style="width:32px;height:44px;object-fit:cover;border-radius:4px">`:''}
+        <button type="button" class="btn btn-ghost" style="padding:4px 10px;font-size:12px" onclick="aiCoverPick(${i})">🖼 ${r.cover?'ပုံပြောင်း':'မျက်နှာဖုံးပုံ ထည့်'}</button>
+        ${r.cover?`<button type="button" class="rm" style="font-size:14px" onclick="aiBookRowsData[${i}].cover='';aiBookRender()">ပုံဖျက်</button>`:''}
+      </div>
+      ${r.dupOf?`<div class="tag">⚠ ရှိပြီးသား (${escapeHtml(r.dupOf.code)})
+        <select style="width:auto;display:inline-block" onchange="aiBookRowsData[${i}].mode=this.value;aiBookRowsData[${i}]._touchedMode=true;aiBookAssignCodes()">
+          <option value="stock"${r.mode==='stock'?' selected':''}>အုပ်ရေ ပေါင်းထည့်</option>
+          <option value="new"${r.mode==='new'?' selected':''}>အသစ်အဖြစ် ထည့်</option>
+          <option value="skip"${r.mode==='skip'?' selected':''}>ကျော်</option>
+        </select></div>`:''}
+      ${bad?'<div class="tag" style="color:#dc2626">Code ထပ်နေ/မရှိ — ပြင်ပါ</div>':''}
+    </div>`;
+  }).join('');
+  const nNew = aiBookRowsData.filter(r=>r.mode==='new').length;
+  const nStock = aiBookRowsData.filter(r=>r.mode==='stock').length;
+  document.getElementById('aiBookSummary').textContent = `အသစ် ${nNew} အုပ် · အုပ်ရေတိုး ${nStock} အုပ် · AI က မှားနိုင်လို့ သိမ်းမယ့်အရင် စစ်ပါ`;
+}
+function aiBookRemove(i){ aiBookRowsData.splice(i,1); aiBookAssignCodes(); }
+function aiBookClose(){ document.getElementById('aiBookModalBg').classList.remove('show'); aiBookRowsData=[]; }
+async function aiBookSave(){
+  const codes = new Set(books.map(b=>(b.code||'').toLowerCase()));
+  for(const r of aiBookRowsData){
+    if(r.mode!=='new') continue;
+    const k=(r.code||'').toLowerCase();
+    if(!k || codes.has(k)){ alert('Code ထပ်နေ/မရှိပါ: '+(r.code||'(အလွတ်)')+' — '+r.title); return; }
+    codes.add(k);
+  }
+  let added=0, stocked=0;
+  aiBookRowsData.forEach(r=>{
+    if(r.mode==='new'){
+      books.push({id:uid(), addedAt:Date.now()+(added), code:r.code, grade:r.grade, subject:r.subject, title:r.title, author:r.author, publisher:r.publisher, price:r.price, arrived:r.qty, remaining:r.qty, coverImage:r.cover||''});
+      added++;
+    } else if(r.mode==='stock' && r.dupOf){
+      const b = books.find(x=>x.id===r.dupOf.id);
+      if(b){ b.remaining=(Number(b.remaining)||0)+r.qty; b.arrived=(Number(b.arrived)||0)+r.qty; if(!Number(b.price) && r.price) b.price=r.price; if(!b.coverImage && r.cover) b.coverImage=r.cover; stocked++; }
+    }
+  });
+  await saveBooks();
+  aiBookClose();
+  render();
+  showToast(`အသစ် ${added} အုပ်၊ အုပ်ရေတိုး ${stocked} အုပ် သိမ်းပြီး`);
+}
+
+/* ---- Order from photo ---- */
+function aiOrderPick(){
+  const el = document.getElementById('aiOrderFile'); el.value=''; el.click();
+}
+document.getElementById('aiOrderFile').onchange = async function(){
+  const files = Array.from(this.files||[]);
+  if(!files.length) return;
+  aiBusy(true, 'Order ဖတ်နေပါတယ်...');
+  try{
+    const list = books.filter(b=>b.code).slice(0,600).map(b=>`${b.code}|${b.grade}|${b.subject}|${b.title}`).join('\n');
+    const prompt = `ဒီပုံ(များ)ထဲက ဝယ်သူ order စာတွေကို ဖတ်ပြီး JSON object တစ်ခုတည်း ပြန်ပေးပါ (တခြားစာ မရေးပါနဲ့):
+{"name":"","fbname":"","phones":[],"address":"","items":[{"code":"","title":"","qty":1}],"deliveryNote":""}
+- name = ဝယ်သူအမည်၊ phones = ဖုန်းနံပါတ်အားလုံး (ဂဏန်းသီးသန့်)၊ address = ပို့ရမည့်လိပ်စာ အပြည့်အစုံ
+- items = မှာထားတဲ့ စာအုပ်တွေ။ အောက်က စာအုပ်စာရင်းထဲက အကိုက်ညီဆုံးကို ရွေးပြီး code ထည့်ပါ၊ မကိုက်ရင် code ကို "" ထားပြီး title မှာ ပုံထဲကအတိုင်း ရေးပါ။
+- မပါတာတွေကို "" သို့ [] ထားပါ၊ မသိတာ မဖန်တီးပါနဲ့။
+စာအုပ်စာရင်း (code|grade|subject|title):
+${list}`;
+    const o = aiParseJson(await files[0].text());
+    if(o.name) document.getElementById('o_name').value = o.name;
+    if(o.fbname) document.getElementById('o_fbname').value = o.fbname;
+    if(o.address) document.getElementById('o_address').value = o.address;
+    const ph = (o.phones||[]).map(p=>String(p).replace(/[^\d+]/g,'')).filter(Boolean);
+    if(ph.length){ currentPhones = ph; renderPhoneRows(); }
+    let missing = 0;
+    const newItems = [];
+    (o.items||[]).forEach(it=>{
+      let b = it.code ? lookupBookByCode(it.code) : null;
+      if(!b && it.title){
+        const n = aiNorm(it.title);
+        b = books.find(x=>aiNorm(x.title)===n) || books.find(x=>n.length>3 && (aiNorm(x.title).includes(n)||n.includes(aiNorm(x.title))));
+      }
+      const qty = Math.max(1, Number(it.qty)||1);
+      if(b) newItems.push({code:b.code, title:b.title, qty, price:Number(b.price)||0, discount:0, ready:true});
+      else { missing++; newItems.push({code:'', title:it.title||'', qty, price:0, discount:0, ready:true}); }
+    });
+    if(newItems.length){
+      const onlyEmpty = currentItems.length===1 && !currentItems[0].code && !currentItems[0].title;
+      currentItems = onlyEmpty ? newItems : currentItems.concat(newItems);
+      renderItemRows();
+    }
+    showToast(`ဖြည့်ပြီး — စာအုပ် ${newItems.length} အုပ်${missing?` (${missing} အုပ် မတွေ့၊ စစ်ပါ)`:''}`);
+  }catch(e){
+    alert('မအောင်မြင်ပါ: ' + e.message);
+  }finally{
+    aiBusy(false);
+  }
+};
+
+let aiCoverIdx = -1;
+function aiCoverPick(i){ aiCoverIdx=i; const el=document.getElementById('aiCoverFile'); el.value=''; el.click(); }
+document.getElementById('aiCoverFile').onchange = function(){
+  const f=this.files&&this.files[0]; if(!f||aiCoverIdx<0) return;
+  const fr=new FileReader();
+  fr.onload=async()=>{ const c=await compressOneImage(fr.result); if(aiBookRowsData[aiCoverIdx]){ aiBookRowsData[aiCoverIdx].cover=c; aiBookRender(); } };
+  fr.readAsDataURL(f);
+};
+
+function bookAddedTime(b){
+  if(b.addedAt) return Number(b.addedAt)||0;
+  const m = /^b(\d{12,14})/.exec(b.id||'');
+  return m ? Number(m[1]) : 0;
+}
+function openRecentBooks(){
+  renderRecentBooks();
+  document.getElementById('recentBooksModalBg').classList.add('show');
+}
+function renderRecentBooks(){
+  const n = Number(document.getElementById('recentBooksCount').value)||20;
+  const list = books.slice().sort((a,b)=>bookAddedTime(b)-bookAddedTime(a)).slice(0,n);
+  const box = document.getElementById('recentBooksList');
+  if(!list.length){ box.innerHTML='<div style="padding:20px;text-align:center;color:var(--ink-soft)">စာအုပ် မရှိသေးပါ</div>'; return; }
+  box.innerHTML = list.map(b=>{
+    const t = bookAddedTime(b);
+    const d = t ? new Date(t).toLocaleDateString('en-GB') : '';
+    return `<div class="ai-row" style="display:flex;gap:10px;align-items:center">
+      ${b.coverImage?`<img src="${b.coverImage}" style="width:38px;height:52px;object-fit:cover;border-radius:4px">`:'<div style="width:38px;height:52px;background:#f1f5f9;border-radius:4px"></div>'}
+      <div style="flex:1;min-width:0"><strong>${escapeHtml(b.code||'-')}</strong> · ${escapeHtml(b.title)}<br>
+        <span style="font-size:11px;color:var(--ink-soft)">${escapeHtml(b.grade)} · ${escapeHtml(b.subject)} · လက်ကျန် ${Number(b.remaining)||0} · ${(Number(b.price)||0).toLocaleString()} ကျပ် ${d?'· '+d:''}</span></div>
+      <button class="btn-edit" onclick="document.getElementById('recentBooksModalBg').classList.remove('show');openEdit('${b.id}')">ပြင်ဆင်</button>
+    </div>`;
+  }).join('');
+}
 </script>
 </body>
 </html>
