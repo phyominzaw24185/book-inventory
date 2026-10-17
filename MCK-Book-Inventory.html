@@ -794,6 +794,12 @@
 
   <div class="toolbar">
     <input type="text" id="searchBox" placeholder="Code၊ အမည်၊ ရေးသူ၊ ပုံနှိပ်တိုက်ဖြင့် ရှာပါ...">
+    <select id="bookSortSel" onchange="try{localStorage.setItem('bookSort',this.value)}catch(e){};render()" style="padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff">
+      <option value="recent">🆕 နောက်ဆုံးထည့်သော စာအုပ်များ</option>
+      <option value="subject">📚 Grade / ဘာသာရပ်အလိုက်</option>
+      <option value="author">✍️ စာရေးဆရာအလိုက်</option>
+      <option value="oldq">📝 မေးခွန်းဟောင်းအလိုက်</option>
+    </select>
     <button class="btn btn-ghost" id="booksSummaryBtn">📊 Summary ကြည့်ရန်</button>
     <button class="btn btn-ghost" id="booksSeriesBtn">🗂️ မျိုးတူစု ကြည့်ရန်</button>
     <button class="btn btn-ghost" id="compressImagesBtn">🗜️ ပုံများ ချုံ့ပြီး Storage လွတ်ရန်</button>
@@ -1074,7 +1080,7 @@
 </div>
 <div class="modal-bg" id="recentBooksModalBg">
   <div class="modal" style="max-width:600px">
-    <h2>🆕 နောက်ဆုံးထည့်သော စာအုပ်များ <small style="font-size:11px;opacity:.7">v9</small></h2>
+    <h2>🆕 နောက်ဆုံးထည့်သော စာအုပ်များ <small style="font-size:11px;opacity:.7">v10</small></h2>
     <div style="margin-bottom:8px"><select id="recentBooksCount" onchange="renderRecentBooks()" style="padding:7px;border:1px solid var(--line);border-radius:6px"><option value="10">နောက်ဆုံး ၁၀ အုပ်</option><option value="20" selected>နောက်ဆုံး ၂၀ အုပ်</option><option value="50">နောက်ဆုံး ၅၀ အုပ်</option><option value="9999">အားလုံး</option></select></div>
     <div id="recentBooksList"></div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="document.getElementById('recentBooksModalBg').classList.remove('show')">ပိတ်မည်</button></div>
@@ -2146,7 +2152,16 @@ function render(){
            (b.publisher||'').toLowerCase().includes(q) ||
            (b.code||'').toLowerCase().includes(q);
   });
-  { const _e=bookEffTimes(); list.sort((a,b)=>(_e.get(b)||0)-(_e.get(a)||0)); }
+  { const _e=bookEffTimes(); const sel=document.getElementById('bookSortSel');
+    let mode='recent'; try{ mode=(sel&&sel.value)||localStorage.getItem('bookSort')||'recent'; }catch(e){ mode=(sel&&sel.value)||'recent'; }
+    if(sel && sel.value!==mode) sel.value=mode;
+    const rec=(a,b)=>(_e.get(b)||0)-(_e.get(a)||0);
+    const ttl=(a,b)=>(a.title||'').localeCompare(b.title||'','my');
+    const isOld=b=>(b.subject==='မေးခွန်းဟောင်း'||(b.title||'').includes('မေးခွန်းဟောင်း'))?0:1;
+    if(mode==='subject') list.sort((a,b)=>(GRADES.indexOf(a.grade)-GRADES.indexOf(b.grade))||(SUBJECTS.indexOf(a.subject)-SUBJECTS.indexOf(b.subject))||ttl(a,b));
+    else if(mode==='author') list.sort((a,b)=>{ const x=(a.author||'').trim(), y=(b.author||'').trim(); if(!x!==!y) return x?-1:1; return x.localeCompare(y,'my')||ttl(a,b); });
+    else if(mode==='oldq') list.sort((a,b)=>(isOld(a)-isOld(b))||rec(a,b));
+    else list.sort(rec); }
 
   const tbody = document.getElementById('tbody');
   if(list.length === 0){
