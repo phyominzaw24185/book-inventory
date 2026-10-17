@@ -1074,7 +1074,7 @@
 </div>
 <div class="modal-bg" id="recentBooksModalBg">
   <div class="modal" style="max-width:600px">
-    <h2>🆕 နောက်ဆုံးထည့်သော စာအုပ်များ <small style="font-size:11px;opacity:.7">v3</small></h2>
+    <h2>🆕 နောက်ဆုံးထည့်သော စာအုပ်များ <small style="font-size:11px;opacity:.7">v4</small></h2>
     <div style="margin-bottom:8px"><select id="recentBooksCount" onchange="renderRecentBooks()" style="padding:7px;border:1px solid var(--line);border-radius:6px"><option value="10">နောက်ဆုံး ၁၀ အုပ်</option><option value="20" selected>နောက်ဆုံး ၂၀ အုပ်</option><option value="50">နောက်ဆုံး ၅၀ အုပ်</option><option value="9999">အားလုံး</option></select></div>
     <div id="recentBooksList"></div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="document.getElementById('recentBooksModalBg').classList.remove('show')">ပိတ်မည်</button></div>
@@ -6082,13 +6082,13 @@ function aiGradeAbbr(g){ const m = g.match(/\d+/); return m ? 'G'+m[0] : 'KG'; }
 function aiBookAssignCodes(resetManual){
   const scheme = document.getElementById('aiCodeScheme').value;
   const used = new Set(books.map(b=>(b.code||'').toLowerCase()));
-  aiBookRowsData.forEach(r=>{ r.dupOf = aiBookFindExisting(r); if(r.dupOf && r.mode==='new' && !r._touchedMode) r.mode='stock'; });
+  aiBookRowsData.forEach(r=>{ r.dupOf = aiBookFindExisting(r); if(r.dupOf && r.mode==='new' && !r._touchedMode) r.mode='cover'; });
   // reserve manual codes first
   aiBookRowsData.forEach(r=>{ if(r.manual && r.code) used.add(r.code.toLowerCase()); });
   let seq = parseInt(suggestNextCode(),10);
   const counters = {};
   aiBookRowsData.forEach(r=>{
-    if(r.mode==='stock' && r.dupOf){ r.code = r.dupOf.code; return; }
+    if((r.mode==='stock'||r.mode==='cover') && r.dupOf){ r.code = r.dupOf.code; return; }
     if(r.manual && r.code) return;
     let code;
     if(scheme==='gs'){
@@ -6109,7 +6109,7 @@ function aiBookAssignCodes(resetManual){
 }
 function aiBookRender(){
   const codeCount = {};
-  aiBookRowsData.forEach(r=>{ if(r.mode!=='skip' && r.mode!=='stock'){ const k=(r.code||'').toLowerCase(); codeCount[k]=(codeCount[k]||0)+1; } });
+  aiBookRowsData.forEach(r=>{ if(r.mode!=='skip' && r.mode!=='stock' && r.mode!=='cover'){ const k=(r.code||'').toLowerCase(); codeCount[k]=(codeCount[k]||0)+1; } });
   const exist = new Set(books.map(b=>(b.code||'').toLowerCase()));
   document.getElementById('aiBookRows').innerHTML = aiBookRowsData.map((r,i)=>{
     const k=(r.code||'').toLowerCase();
@@ -6124,7 +6124,7 @@ function aiBookRender(){
         <select onchange="aiBookRowsData[${i}].subject=this.value;aiBookAssignCodes()">${SUBJECTS.map(g=>`<option${g===r.subject?' selected':''}>${g}</option>`).join('')}</select>
       </div>
       <div class="g3">
-        <input value="${escapeHtml(r.code)}" ${r.mode==='stock'?'readonly':''} placeholder="Code" onchange="aiBookRowsData[${i}].code=this.value.trim();aiBookRowsData[${i}].manual=true;aiBookRender()">
+        <input value="${escapeHtml(r.code)}" ${(r.mode==='stock'||r.mode==='cover')?'readonly':''} placeholder="Code" onchange="aiBookRowsData[${i}].code=this.value.trim();aiBookRowsData[${i}].manual=true;aiBookRender()">
         <input type="number" min="0" value="${r.price}" placeholder="စျေး" oninput="aiBookRowsData[${i}].price=Number(this.value)||0">
         <input type="number" min="1" value="${r.qty}" placeholder="အုပ်ရေ" oninput="aiBookRowsData[${i}].qty=Math.max(1,Number(this.value)||1)">
       </div>
@@ -6135,6 +6135,7 @@ function aiBookRender(){
       </div>
       ${r.dupOf?`<div class="tag">⚠ ရှိပြီးသား (${escapeHtml(r.dupOf.code)})
         <select style="width:auto;display:inline-block" onchange="aiBookRowsData[${i}].mode=this.value;aiBookRowsData[${i}]._touchedMode=true;aiBookAssignCodes()">
+          <option value="cover"${r.mode==='cover'?' selected':''}>ကာဗာပုံသာ (အုပ်ရေ မပြောင်း)</option>
           <option value="stock"${r.mode==='stock'?' selected':''}>အုပ်ရေ ပေါင်းထည့်</option>
           <option value="new"${r.mode==='new'?' selected':''}>အသစ်အဖြစ် ထည့်</option>
           <option value="skip"${r.mode==='skip'?' selected':''}>ကျော်</option>
@@ -6156,11 +6157,14 @@ async function aiBookSave(){
     if(!k || codes.has(k)){ alert('Code ထပ်နေ/မရှိပါ: '+(r.code||'(အလွတ်)')+' — '+r.title); return; }
     codes.add(k);
   }
-  let added=0, stocked=0;
+  let added=0, stocked=0, covered=0;
   aiBookRowsData.forEach(r=>{
     if(r.mode==='new'){
       books.push({id:uid(), addedAt:Date.now()+(added), code:r.code, grade:r.grade, subject:r.subject, title:r.title, author:r.author, publisher:r.publisher, price:r.price, arrived:r.qty, remaining:r.qty, coverImage:r.cover||''});
       added++;
+    } else if(r.mode==='cover' && r.dupOf){
+      const b = books.find(x=>x.id===r.dupOf.id);
+      if(b && r.cover){ b.coverImage=r.cover; covered++; }
     } else if(r.mode==='stock' && r.dupOf){
       const b = books.find(x=>x.id===r.dupOf.id);
       if(b){ b.remaining=(Number(b.remaining)||0)+r.qty; b.arrived=(Number(b.arrived)||0)+r.qty; if(!Number(b.price) && r.price) b.price=r.price; if(!b.coverImage && r.cover) b.coverImage=r.cover; b.restockedAt=Date.now()+stocked; stocked++; }
@@ -6169,7 +6173,7 @@ async function aiBookSave(){
   await saveBooks();
   aiBookClose();
   render();
-  showToast(`အသစ် ${added} အုပ်၊ အုပ်ရေတိုး ${stocked} အုပ် သိမ်းပြီး`);
+  showToast(`အသစ် ${added} အုပ်၊ အုပ်ရေတိုး ${stocked} အုပ်၊ ကာဗာပုံ ${covered} ပုံ သိမ်းပြီး`);
 }
 
 /* ---- Order from photo ---- */
