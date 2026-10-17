@@ -1074,7 +1074,7 @@
 </div>
 <div class="modal-bg" id="recentBooksModalBg">
   <div class="modal" style="max-width:600px">
-    <h2>🆕 နောက်ဆုံးထည့်သော စာအုပ်များ <small style="font-size:11px;opacity:.7">v7</small></h2>
+    <h2>🆕 နောက်ဆုံးထည့်သော စာအုပ်များ <small style="font-size:11px;opacity:.7">v8</small></h2>
     <div style="margin-bottom:8px"><select id="recentBooksCount" onchange="renderRecentBooks()" style="padding:7px;border:1px solid var(--line);border-radius:6px"><option value="10">နောက်ဆုံး ၁၀ အုပ်</option><option value="20" selected>နောက်ဆုံး ၂၀ အုပ်</option><option value="50">နောက်ဆုံး ၅၀ အုပ်</option><option value="9999">အားလုံး</option></select></div>
     <div id="recentBooksList"></div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="document.getElementById('recentBooksModalBg').classList.remove('show')">ပိတ်မည်</button></div>
@@ -6238,7 +6238,22 @@ function bookAddedTime(b){
   const m = /^b(\d{12,14})/.exec(b.id||'');
   return Math.max(ok(b.restockedAt), ok(b.addedAt)) || (m ? ok(m[1]) : 0);
 }
-function openRecentBooks(){
+async function fixBadBookDates(){
+  const lim=Date.now()+86400000; let n=0;
+  books.forEach(b=>{
+    ['addedAt','restockedAt'].forEach(k=>{
+      if(b[k] && Number(b[k])>lim){
+        const m=/^b(\d{12,14})/.exec(b.id||''); const t=m?Number(m[1]):0;
+        if(t>0 && t<=lim && k==='addedAt') b[k]=t; else delete b[k];
+        n++;
+      }
+    });
+  });
+  if(n){ await saveBooks(); try{ showToast('ရက်စွဲမှား '+n+' ခု ပြင်ပြီး'); }catch(e){} }
+  return n;
+}
+async function openRecentBooks(){
+  await fixBadBookDates();
   renderRecentBooks();
   document.getElementById('recentBooksModalBg').classList.add('show');
 }
