@@ -800,6 +800,7 @@
     <button class="btn btn-ghost" id="cleanIncompleteBooksBtn">🧹 မပြည့်စုံသေးသော စာအုပ်များ ရှင်းရန်</button>
     <button class="btn btn-ghost" onclick="openRecentBooks()">🆕 နောက်ဆုံးထည့်သော စာအုပ်များ</button>
     <button class="btn btn-ghost" id="aiBookBtn" onclick="aiBookPick()">📥 စာရင်းဖိုင်မှ ထည့်ရန်</button>
+    <button class="btn btn-ghost" onclick="covPick()">🖼 ကာဗာပုံသာ ထည့်ရန်</button>
     <button class="btn btn-maroon" id="addBtn">+ စာအုပ်အသစ်ထည့်ရန်</button>
   </div>
 
@@ -1059,6 +1060,16 @@
       <button class="btn btn-ghost" onclick="aiBookClose()">မလုပ်တော့ပါ</button>
       <button class="btn btn-maroon" onclick="aiBookSave()">သိမ်းမည်</button>
     </div>
+  </div>
+</div>
+<input type="file" id="covFile" accept=".json,application/json" style="display:none">
+<input type="file" id="covOne" accept="image/*" style="display:none">
+<div class="modal-bg" id="covModalBg">
+  <div class="modal" style="max-width:640px">
+    <h2>🖼 ကာဗာပုံ ထည့်ရန်</h2>
+    <div style="font-size:12px;color:var(--ink-soft);margin-bottom:8px">ပုံတစ်ပုံချင်းစီအတွက် ကိုက်ညီတဲ့ စာအုပ်ကို ရွေးပါ။ မရွေးရင် ကျော်သွားပါမယ်။ လက်ကျန်၊ ဈေးနှုန်း မပြောင်းပါ။</div>
+    <div id="covList"></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="document.getElementById('covModalBg').classList.remove('show')">ပိတ်မည်</button><button class="btn btn-primary" onclick="covApply()">ထည့်မည်</button></div>
   </div>
 </div>
 <div class="modal-bg" id="recentBooksModalBg">
@@ -6239,10 +6250,69 @@ function renderRecentBooks(){
       ${b.coverImage?`<img src="${b.coverImage}" style="width:38px;height:52px;object-fit:cover;border-radius:4px">`:'<div style="width:38px;height:52px;background:#f1f5f9;border-radius:4px"></div>'}
       <div style="flex:1;min-width:0"><strong>${escapeHtml(b.code||'-')}</strong> · ${escapeHtml(b.title)}<br>
         <span style="font-size:11px;color:var(--ink-soft)">${escapeHtml(b.grade)} · ${escapeHtml(b.subject)} · လက်ကျန် ${Number(b.remaining)||0} · ${(Number(b.price)||0).toLocaleString()} ကျပ် ${d?'· '+d:''}</span></div>
+      <button class="btn-edit" onclick="covOnePick('${b.id}')">📷</button>
       <button class="btn-edit" onclick="document.getElementById('recentBooksModalBg').classList.remove('show');openEdit('${b.id}')">ပြင်ဆင်</button>
     </div>`;
   }).join('');
 }
+
+/* ---- Cover-only import ---- */
+let covRows = [], covOneId = null;
+function covPick(){ const el=document.getElementById('covFile'); el.value=''; el.click(); }
+function covScore(a,b){
+  const w=t=>new Set((t||'').toString().toLowerCase().split(/[^a-z0-9\u1000-\u109f]+/).filter(x=>x.length>1));
+  const A=w(a),B=w(b); if(!A.size||!B.size) return 0;
+  let n=0; A.forEach(x=>{ if(B.has(x)) n++; });
+  return n/Math.min(A.size,B.size);
+}
+document.getElementById('covFile').onchange = async function(){
+  const f=this.files[0]; if(!f) return;
+  try{
+    const out=JSON.parse(await f.text());
+    const arr=(Array.isArray(out)?out:(out.books||[])).filter(r=>r.cover&&String(r.cover).startsWith('data:image'));
+    if(!arr.length) throw new Error('ပုံ မတွေ့ပါ');
+    covRows=arr.map(r=>{
+      let best=null,bs=0;
+      books.forEach(b=>{
+        let sc=covScore(r.title,b.title)+(b.grade===r.grade?0.2:0)+(b.coverImage?-0.3:0.1);
+        if(covScore(r.title,b.title)>=0.5 && sc>bs){ bs=sc; best=b; }
+      });
+      return {r, id:best?best.id:''};
+    });
+    covRender();
+    document.getElementById('covModalBg').classList.add('show');
+  }catch(e){ alert('မအောင်မြင်ပါ: '+e.message); }
+};
+function covRender(){
+  const sorted=books.slice().sort((a,b)=>(a.coverImage?1:0)-(b.coverImage?1:0));
+  const opts=sorted.map(b=>`<option value="${b.id}">${escapeHtml(b.code||'-')} · ${escapeHtml(b.title)} (${escapeHtml(b.grade)})${b.coverImage?' ✓':''}</option>`).join('');
+  document.getElementById('covList').innerHTML=covRows.map((x,i)=>`<div class="ai-row" style="display:flex;gap:10px;align-items:center">
+    <img src="${x.r.cover}" style="width:52px;height:70px;object-fit:cover;border-radius:4px">
+    <div style="flex:1;min-width:0"><div style="font-size:12px;margin-bottom:4px">${escapeHtml(x.r.title||'')}<br><span style="color:var(--ink-soft)">${escapeHtml(x.r.author||'')}</span></div>
+    <select onchange="covRows[${i}].id=this.value" style="width:100%;padding:6px;border:1px solid var(--line);border-radius:6px"><option value="">— ကျော်မည် —</option>${opts}</select></div></div>`).join('');
+  covRows.forEach((x,i)=>{ const sel=document.querySelectorAll('#covList select')[i]; if(sel) sel.value=x.id; });
+}
+async function covApply(){
+  let n=0;
+  covRows.forEach(x=>{ if(!x.id) return; const b=books.find(k=>k.id===x.id); if(b){ b.coverImage=x.r.cover; n++; } });
+  await saveBooks(); render();
+  document.getElementById('covModalBg').classList.remove('show');
+  if(document.getElementById('recentBooksModalBg').classList.contains('show')) renderRecentBooks();
+  alert('ကာဗာပုံ '+n+' ပုံ ထည့်ပြီးပါပြီ');
+}
+function covOnePick(id){ covOneId=id; const el=document.getElementById('covOne'); el.value=''; el.click(); }
+document.getElementById('covOne').onchange = function(){
+  const f=this.files[0]; if(!f||!covOneId) return;
+  const img=new Image(), url=URL.createObjectURL(f);
+  img.onload=async()=>{
+    const sc=Math.min(1,340/Math.max(img.width,img.height)), c=document.createElement('canvas');
+    c.width=Math.round(img.width*sc); c.height=Math.round(img.height*sc);
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height); URL.revokeObjectURL(url);
+    const b=books.find(k=>k.id===covOneId); if(!b) return;
+    b.coverImage=c.toDataURL('image/jpeg',0.6); await saveBooks(); render(); renderRecentBooks();
+  };
+  img.src=url;
+};
 </script>
 </body>
 </html>
