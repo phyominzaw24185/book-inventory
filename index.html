@@ -6163,7 +6163,7 @@ async function aiBookSave(){
       added++;
     } else if(r.mode==='stock' && r.dupOf){
       const b = books.find(x=>x.id===r.dupOf.id);
-      if(b){ b.remaining=(Number(b.remaining)||0)+r.qty; b.arrived=(Number(b.arrived)||0)+r.qty; if(!Number(b.price) && r.price) b.price=r.price; if(!b.coverImage && r.cover) b.coverImage=r.cover; stocked++; }
+      if(b){ b.remaining=(Number(b.remaining)||0)+r.qty; b.arrived=(Number(b.arrived)||0)+r.qty; if(!Number(b.price) && r.price) b.price=r.price; if(!b.coverImage && r.cover) b.coverImage=r.cover; b.restockedAt=Date.now()+stocked; stocked++; }
     }
   });
   await saveBooks();
@@ -6230,7 +6230,7 @@ document.getElementById('aiCoverFile').onchange = function(){
 };
 
 function bookAddedTime(b){
-  if(b.addedAt) return Number(b.addedAt)||0;
+  if(b.restockedAt || b.addedAt) return Math.max(Number(b.restockedAt)||0, Number(b.addedAt)||0);
   const m = /^b(\d{12,14})/.exec(b.id||'');
   return m ? Number(m[1]) : 0;
 }
